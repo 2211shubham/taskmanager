@@ -1,0 +1,40 @@
+global:
+  imageRegistry: "docker.io"
+  imagePullPolicy: IfNotPresent
+
+frontend:
+  image:
+    repository: ss2211shubham/taskmanager-frontend
+    tag: latest
+  replicaCount: 2
+  resources:
+    requests: { cpu: "50m", memory: "64Mi" }
+    limits:   { cpu: "200m", memory: "128Mi" }
+
+backend:
+  image:
+    repository: ss2211shubham/taskmanager-backend
+    tag: latest
+  replicaCount: 2
+  resources:
+    requests: { cpu: "100m", memory: "128Mi" }
+    limits:   { cpu: "500m", memory: "256Mi" }
+
+postgresql:
+  image:
+    repository: postgres
+    tag: "15-alpine"
+  storage: 5Gi
+  resources:
+    requests: { cpu: "100m", memory: "256Mi" }
+    limits:   { cpu: "500m", memory: "512Mi" }
+
+ingress:
+  enabled: true
+  host: taskmanager.local
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
