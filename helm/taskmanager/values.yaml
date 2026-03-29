@@ -24,6 +24,9 @@ postgresql:
   image:
     repository: postgres
     tag: "15-alpine"
+  auth:                        # ← ADD THIS SECTION
+    username: "app"
+    password: "changeme"
   storage: 5Gi
   resources:
     requests: { cpu: "100m", memory: "256Mi" }

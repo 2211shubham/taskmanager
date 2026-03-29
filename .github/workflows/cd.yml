@@ -4,14 +4,9 @@ on:
   push:
     branches: [main]
 
-# ✅ Prevent concurrent deploys (avoid race conditions)
 concurrency:
   group: production-deploy
   cancel-in-progress: false
-
-env:
-  REGISTRY: docker.io
-  IMAGE_PREFIX: ${{ secrets.DOCKER_USERNAME }}/taskmanager
 
 jobs:
   build-and-push:
@@ -19,14 +14,18 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image-tag: ${{ steps.tag.outputs.tag }}
+      image-prefix: ${{ steps.prefix.outputs.prefix }}
 
     steps:
       - uses: actions/checkout@v4
 
-      # ✅ Tag images with short git SHA for traceability
       - name: Set image tag
         id: tag
         run: echo "tag=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
+
+      - name: Set image prefix
+        id: prefix
+        run: echo "prefix=${{ secrets.DOCKER_USERNAME }}/taskmanager" >> $GITHUB_OUTPUT
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -34,7 +33,6 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # ✅ BuildKit cache speeds up repeated builds significantly
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -44,8 +42,8 @@ jobs:
           context: ./backend
           push: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}-backend:${{ steps.tag.outputs.tag }}
-            ${{ env.IMAGE_PREFIX }}-backend:latest
+            ${{ steps.prefix.outputs.prefix }}-backend:${{ steps.tag.outputs.tag }}
+            ${{ steps.prefix.outputs.prefix }}-backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -55,8 +53,8 @@ jobs:
           context: ./frontend
           push: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}-frontend:${{ steps.tag.outputs.tag }}
-            ${{ env.IMAGE_PREFIX }}-frontend:latest
+            ${{ steps.prefix.outputs.prefix }}-frontend:${{ steps.tag.outputs.tag }}
+            ${{ steps.prefix.outputs.prefix }}-frontend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -64,12 +62,10 @@ jobs:
     name: Deploy to Kubernetes
     runs-on: ubuntu-latest
     needs: build-and-push
-    environment: production  # Requires manual approval in GitHub
 
     steps:
       - uses: actions/checkout@v4
 
-      # ✅ Connect to your cluster using a kubeconfig secret
       - name: Configure Kubernetes
         run: |
           mkdir -p $HOME/.kube
@@ -78,7 +74,6 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v3
 
-      # ✅ helm upgrade --install = create if not exists, upgrade if exists
       - name: Deploy with Helm
         run: |
           helm upgrade --install taskmanager ./helm/taskmanager \
@@ -86,13 +81,14 @@ jobs:
             --create-namespace \
             --set backend.image.tag=${{ needs.build-and-push.outputs.image-tag }} \
             --set frontend.image.tag=${{ needs.build-and-push.outputs.image-tag }} \
+            --set backend.image.repository=${{ needs.build-and-push.outputs.image-prefix }}-backend \
+            --set frontend.image.repository=${{ needs.build-and-push.outputs.image-prefix }}-frontend \
             --set postgresql.auth.username=${{ secrets.DB_USER }} \
             --set postgresql.auth.password=${{ secrets.DB_PASSWORD }} \
             --values ./helm/taskmanager/values/prod.yaml \
-            --wait \        # Wait for all pods to be ready
-            --timeout 5m    # Fail if deploy takes > 5 minutes
+            --wait \
+            --timeout 5m
 
-      # ✅ Smoke test after deploy
       - name: Smoke test
         run: |
           kubectl run smoke-test \
