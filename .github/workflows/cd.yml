@@ -11,7 +11,7 @@ concurrency:
 
 env:
   REGISTRY: docker.io
-  IMAGE_PREFIX: youruser/taskmanager
+  IMAGE_PREFIX: ${{ secrets.DOCKER_USERNAME }}/taskmanager
 
 jobs:
   build-and-push:
