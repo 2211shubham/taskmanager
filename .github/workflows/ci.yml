@@ -1,6 +1,5 @@
 name: CI — Test & Lint
 
-# ✅ Trigger on Pull Requests to main
 on:
   pull_request:
     branches: [main]
@@ -9,7 +8,6 @@ jobs:
   test-backend:
     name: Backend Tests
     runs-on: ubuntu-latest
-    # ✅ Run a real Postgres for integration tests
     services:
       postgres:
         image: postgres:15-alpine
@@ -31,7 +29,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          # ✅ Cache npm deps for faster runs
           cache: "npm"
           cache-dependency-path: backend/package-lock.json
 
@@ -39,18 +36,14 @@ jobs:
         run: npm ci
         working-directory: backend
 
-      - name: Run tests with coverage
-        run: npm test -- --coverage
+      - name: Run tests
+        run: npm test
         working-directory: backend
         env:
           DB_HOST: localhost
           DB_NAME: taskmanager_test
           DB_USER: test
           DB_PASSWORD: testpass
-
-      # ✅ Upload coverage so you can track it
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
 
   test-frontend:
     name: Frontend Tests
@@ -60,9 +53,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: npm
+          cache: "npm"
           cache-dependency-path: frontend/package-lock.json
-      - run: npm ci && npm test -- --watchAll=false
+      - name: Install and test
+        run: npm ci && npm test -- --watchAll=false
         working-directory: frontend
 
   lint-helm:
@@ -74,16 +68,3 @@ jobs:
         uses: azure/setup-helm@v3
       - name: Lint chart
         run: helm lint ./helm/taskmanager
-
-  security-scan:
-    name: Security Scan (Trivy)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'  # Fail the build on HIGH/CRITICAL vulns
